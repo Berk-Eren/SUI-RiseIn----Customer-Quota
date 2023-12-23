@@ -169,6 +169,8 @@ module customer_quota::example {
         transfer::transfer(profits, tx_context::sender(ctx));
     }
 
+    
+
     #[test]
     public fun test_product_swapping() {
         use sui::test_scenario;
@@ -190,7 +192,7 @@ module customer_quota::example {
 
             let admin_right = AdminRight { id: object::new(ctx) };
             add_employee(&mut admin_right, employee, &mut company, ctx);
-            assert!();
+            assert!(object_table::length(&company.employees) == 1);
             transfer::transfer(admin_right, admin);
             test_scenario::return_shared(company);
         };

@@ -36,7 +36,6 @@ module customer_quota::test {
         
 
         {
-            
             let ctx = test_scenario::ctx(scenario);
             let company: Company = test_scenario::take_shared(scenario);
             let employee_right: EmployeeRight = test_scenario::take_from_sender<EmployeeRight>(scenario);

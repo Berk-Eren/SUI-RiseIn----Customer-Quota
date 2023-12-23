@@ -27,6 +27,20 @@ module customer_quota::contract {
         remainder: u8
     }
 
+    struct Request has key {
+        id: UID,
+        exchange_key: String,
+        owner: address,
+        obj: Product,
+        fee: u64
+    }
+
+    struct Product has key, store {
+        id: UID,
+        name: String,
+        fee: u64
+    }
+
     struct Company has key {
         id: UID,
         name: String,
@@ -76,19 +90,6 @@ module customer_quota::contract {
         object_table::add(&mut company.employees, company.employee_counter, employee);
     }
 
-    struct Request has key {
-        id: UID,
-        exchange_key: String,
-        owner: address,
-        obj: Product,
-        fee: u64
-    }
-
-    struct Product has key, store {
-        id: UID,
-        name: String,
-        fee: u64
-    }
 
     public entry fun create_product(
         _: &EmployeeRight,
@@ -176,9 +177,7 @@ module customer_quota::contract {
 
     public fun get_number_of_employees(
         company: Company
-    ): (
-        u64
-    ) {
+    ): u64 {
         object_table::length(&company.employees)
     }
 

@@ -1,4 +1,4 @@
-module customer_quota::example {
+module customer_quota::contract {
     use sui::transfer;
     use sui::sui::SUI;
     use sui::coin::{Self, Coin};
@@ -8,10 +8,10 @@ module customer_quota::example {
     use sui::tx_context::{Self, TxContext};
     use sui::object_table::{Self, ObjectTable};
 
-    const DISCOUNT_PERCENTAGE: u8 = 50;
+    //const DISCOUNT_PERCENTAGE: u8 = 50;
 
-    const EUnequalObjects: u64 = 0;
-    const EKeyMismatch: u64 = 1;
+    //const EUnequalObjects: u64 = 0;
+    const EKeyMismatch: u64 = 0;
 
     struct AdminRight has key {
         id: UID
@@ -133,10 +133,15 @@ module customer_quota::example {
         exchange_key: vector<u8>,
         ctx: &mut TxContext
     ) {
+        let sender_id = tx_context::sender(ctx);
         assert!(
             request.exchange_key == string::utf8(exchange_key), 
             EKeyMismatch
         );
+        /*assert!(
+            request.id == sender_id, 
+            EKeyMismatch
+        );*/
 
         let Request {
             id: id,
@@ -154,7 +159,7 @@ module customer_quota::example {
 
         transfer::transfer(
             obj, 
-            tx_context::sender(ctx)
+            sender_id
         );
     }
 
@@ -166,48 +171,19 @@ module customer_quota::example {
         let amount = balance::value(&company.balance);
         let profits = coin::take(&mut company.balance, amount, ctx);
         
-        transfer::transfer(profits, tx_context::sender(ctx));
+        transfer::public_transfer(profits, tx_context::sender(ctx));
     }
 
-    
+    public fun get_number_of_employees(
+        company: Company
+    ): (
+        u64
+    ) {
+        object_table::length(&company.employees)
+    }
 
-    #[test]
-    public fun test_product_swapping() {
-        use sui::test_scenario;
-
-        let admin = @0xBABE;
-        let employee = @0xFABE;
-        //let customer = @0xFACE;
-
-        let scenario_val = test_scenario::begin(admin);
-        let scenario = &mut scenario_val;
-        {
-            init(test_scenario::ctx(scenario));
-        };
-
-        test_scenario::next_tx(scenario, admin);
-        {
-            let company: Company = test_scenario::take_shared(scenario);
-            let ctx = test_scenario::ctx(scenario);
-
-            let admin_right = AdminRight { id: object::new(ctx) };
-            add_employee(&mut admin_right, employee, &mut company, ctx);
-            assert!(object_table::length(&company.employees) == 1);
-            transfer::transfer(admin_right, admin);
-            test_scenario::return_shared(company);
-        };
-
-        test_scenario::next_tx(scenario, admin);
-        {
-            let company: Company = test_scenario::take_shared(scenario);
-            let ctx = test_scenario::ctx(scenario);
-            let txt = b"Hello!\n";
-            let employee_right = EmployeeRight { id: object::new(ctx) };
-            create_product(&employee_right, txt, 2, &mut company, ctx);
-            transfer::transfer(employee_right, employee);
-            test_scenario::return_shared(company);
-        };
-
-        test_scenario::end(scenario_val);
+    #[test_only]
+    public fun init_for_testing(ctx: &mut TxContext){
+        init(ctx);
     }
 }

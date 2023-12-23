@@ -1,9 +1,14 @@
 module customer_quota::example {
     use sui::transfer;
+    use sui::sui::SUI;
+    use sui::coin::{Self, Coin};
+    use sui::balance::{Self, Balance};
     use std::string::{Self, String};
     use sui::object::{Self, UID};
     use sui::tx_context::{Self, TxContext};
     use sui::object_table::{Self, ObjectTable};
+
+    const DISCOUNT_PERCENTAGE: u8 = 50;
 
     const EUnequalObjects: u64 = 0;
     const EKeyMismatch: u64 = 1;
@@ -16,28 +21,16 @@ module customer_quota::example {
         id: UID
     }
 
-    struct Product has key, store {
-        id: UID,
-        name: String,
-        fee: u8
-    }
-
     struct Employee has key, store {
         id: UID,
         owner: address,
         remainder: u8
     }
 
-    struct Request has key {
-        id: UID,
-        exchange_key: String,
-        obj: Product,
-        fee: u8
-    }
-
     struct Company has key {
         id: UID,
         name: String,
+        balance: Balance<SUI>,
         product_counter: u8,
         employee_counter: u8,
         products: ObjectTable<u8, Product>,
@@ -52,6 +45,7 @@ module customer_quota::example {
         transfer::share_object(
             Company {
                 id: object::new(ctx),
+                balance: balance::zero(),
                 name: string::utf8(b"Company A"),
                 product_counter: 0,
                 employee_counter: 0,
@@ -82,10 +76,24 @@ module customer_quota::example {
         object_table::add(&mut company.employees, company.employee_counter, employee);
     }
 
+    struct Request has key {
+        id: UID,
+        exchange_key: String,
+        owner: address,
+        obj: Product,
+        fee: u64
+    }
+
+    struct Product has key, store {
+        id: UID,
+        name: String,
+        fee: u64
+    }
+
     public entry fun create_product(
         _: &EmployeeRight,
         name: vector<u8>,
-        fee: u8,
+        fee: u64,
         company: &mut Company,
         ctx: &mut TxContext
     ) {
@@ -105,34 +113,60 @@ module customer_quota::example {
         exchange_key: vector<u8>,
         ctx: &mut TxContext
     ) {
+        let sender = tx_context::sender(ctx);
+
         let request = Request {
             id: object::new(ctx),
+            owner: sender,
             fee: product.fee,
             obj: product,
             exchange_key: string::utf8(exchange_key)
         };
 
-        transfer::transfer(request, tx_context::sender(ctx));
+        transfer::transfer(request, sender);
     }
 
     public entry fun buy_product(
         request: Request,
-        fee: u8,
+        company: &mut Company,
+        payment: &mut Coin<SUI>,
         exchange_key: vector<u8>,
         ctx: &mut TxContext
     ) {
-        assert!(request.exchange_key == string::utf8(exchange_key), EKeyMismatch);
-        assert!(request.fee == fee, EUnequalObjects);
+        assert!(
+            request.exchange_key == string::utf8(exchange_key), 
+            EKeyMismatch
+        );
 
         let Request {
             id: id,
             obj: obj,
-            fee: _,
+            owner: _,
+            fee: fee,
             exchange_key: _
         } = request;
 
+        let coin_balance = coin::balance_mut(payment);
+        let paid = balance::split(coin_balance, fee);
+
+        balance::join(&mut company.balance, paid);
         object::delete(id);
-        transfer::transfer(obj, tx_context::sender(ctx));
+
+        transfer::transfer(
+            obj, 
+            tx_context::sender(ctx)
+        );
+    }
+
+    public entry fun collect_profits(
+        _: &AdminRight, 
+        company: &mut Company, 
+        ctx: &mut TxContext
+    ) {
+        let amount = balance::value(&company.balance);
+        let profits = coin::take(&mut company.balance, amount, ctx);
+        
+        transfer::transfer(profits, tx_context::sender(ctx));
     }
 
     #[test]
@@ -156,6 +190,7 @@ module customer_quota::example {
 
             let admin_right = AdminRight { id: object::new(ctx) };
             add_employee(&mut admin_right, employee, &mut company, ctx);
+            assert!();
             transfer::transfer(admin_right, admin);
             test_scenario::return_shared(company);
         };
